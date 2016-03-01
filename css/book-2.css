@@ -1,0 +1,24 @@
+
+p {
+	color: #777777;
+}
+p.title {
+	color: #333333;
+}
+hr{
+	border: 2px solid #F2CF03;
+	width: 60px;
+}
+#home {
+	padding: 30px 0;
+}
+#home i {
+	font-size: 72px;
+}
+.left-block {
+	height: 600px;
+	padding: 75px 75px 0;
+}
+.right-block {
+	height: 600px;
+}

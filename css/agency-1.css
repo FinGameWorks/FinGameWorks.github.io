@@ -1,0 +1,24 @@
+
+p {
+	color: #777777;
+}
+#home {
+	padding: 250px 0 0;
+}
+#testimonial {
+	padding: 75px 0 50px;
+}
+#testimonial p {
+	color: #ffffff;
+	font-weight: 300;
+}
+#testimonial p.block-title {
+	color: #333333;
+}
+#features i {
+  font-size: 72px;
+  color: #00C2E5;
+}
+#features p {
+  margin-bottom: 50px;
+}

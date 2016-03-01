@@ -1,0 +1,27 @@
+p {
+	color: #333333;
+}
+hr{
+  border: 2px solid #8EA6E6;
+  width: 60px;
+}
+.home-block {
+	padding: 35vh 0;
+}
+.home-block h2 {
+	font-size: 36px;
+}
+#home img {
+	width: 150px;
+}
+#features {
+	padding: 75px 0 50px;
+}
+#features i {
+	line-height: 0;
+	font-size: 36px;
+	color: #00D3CA;
+}
+#features .block-title {
+	font-size: 16px;
+}

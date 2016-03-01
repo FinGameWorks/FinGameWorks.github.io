@@ -1,0 +1,38 @@
+nav.transparent a {
+  color: #fff;
+}
+.home-default {
+  padding: 250px 0 0;
+}
+.home-default p {
+  color: #ffffff;
+  line-height: 28px;
+}
+p {
+  color: #777777;
+  line-height: 28px;
+}
+
+#features i {
+  font-size: 72px;
+  color: #F84B66;
+}
+#features p {
+  margin-bottom: 50px;
+}
+
+.left-block {
+  height: 600px;
+}
+.left-block img{
+  height: 70px;
+  width: auto;
+  margin-bottom: 25px;
+}
+.right-block {
+  height: 600px;
+}
+.right-block img {
+  height: 580px;
+  width: auto;
+}
