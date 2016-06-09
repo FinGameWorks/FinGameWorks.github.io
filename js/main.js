@@ -1,354 +1,313 @@
-$(document).ready(function() { 
-    "use strict";
+/**
+ * main.js
+ * http://www.codrops.com
+ *
+ * Licensed under the MIT license.
+ * http://www.opensource.org/licenses/mit-license.php
+ * 
+ * Copyright 2015, Codrops
+ * http://www.codrops.com
+ */
+;(function(window) {
+
+	'use strict';
+
+	var bodyEl = document.body, 
+		docElem = window.document.documentElement,
+		support = { transitions: Modernizr.csstransitions },
+		// transition end event name
+		transEndEventNames = { 'WebkitTransition': 'webkitTransitionEnd', 'MozTransition': 'transitionend', 'OTransition': 'oTransitionEnd', 'msTransition': 'MSTransitionEnd', 'transition': 'transitionend' },
+		transEndEventName = transEndEventNames[ Modernizr.prefixed( 'transition' ) ],
+		onEndTransition = function( el, callback ) {
+			var onEndCallbackFn = function( ev ) {
+				if( support.transitions ) {
+					if( ev.target != this ) return;
+					this.removeEventListener( transEndEventName, onEndCallbackFn );
+				}
+				if( callback && typeof callback === 'function' ) { callback.call(this); }
+			};
+			if( support.transitions ) {
+				el.addEventListener( transEndEventName, onEndCallbackFn );
+			}
+			else {
+				onEndCallbackFn();
+			}
+		},
+		// window sizes
+		win = {width: window.innerWidth, height: window.innerHeight},
+		// some helper vars to disallow scrolling
+		lockScroll = false, xscroll, yscroll,
+		scrollContainer = document.querySelector('.container'),
+		// the main slider and its items
+		sliderEl = document.querySelector('.slider'),
+		items = [].slice.call(sliderEl.querySelectorAll('.slide')),
+		// total number of items
+		itemsTotal = items.length,
+		// navigation controls/arrows
+		navRightCtrl = sliderEl.querySelector('.button--nav-next'),
+		navLeftCtrl = sliderEl.querySelector('.button--nav-prev'),
+		zoomCtrl = sliderEl.querySelector('.button--zoom'),
+		// the main content element
+		contentEl = document.querySelector('.content'),
+		// close content control
+		closeContentCtrl = contentEl.querySelector('button.button--close'),
+		// index of current item
+		current = 0,
+		// check if an item is "open"
+		isOpen = false,
+		isFirefox = typeof InstallTrigger !== 'undefined',
+		// scale body when zooming into the items, if not Firefox (the performance in Firefox is not very good)
+		bodyScale = isFirefox ? false : 10;
+
+	// some helper functions:
+	function scrollX() { return window.pageXOffset || docElem.scrollLeft; }
+	function scrollY() { return window.pageYOffset || docElem.scrollTop; }
+	// from http://www.sberry.me/articles/javascript-event-throttling-debouncing
+	function throttle(fn, delay) {
+		var allowSample = true;
+
+		return function(e) {
+			if (allowSample) {
+				allowSample = false;
+				setTimeout(function() { allowSample = true; }, delay);
+				fn(e);
+			}
+		};
+	}
+
+	function init() {
+		initEvents();
+	}
+
+	// event binding
+	function initEvents() {
+		// open items
+		zoomCtrl.addEventListener('click', function() {
+			openItem(items[current]);
+		});
+
+		// close content
+		closeContentCtrl.addEventListener('click', closeContent);
+
+		// navigation
+		navRightCtrl.addEventListener('click', function() { navigate('right'); });
+		navLeftCtrl.addEventListener('click', function() { navigate('left'); });
+
+		// window resize
+		window.addEventListener('resize', throttle(function(ev) {
+			// reset window sizes
+			win = {width: window.innerWidth, height: window.innerHeight};
+
+			// reset transforms for the items (slider items)
+			items.forEach(function(item, pos) {
+				if( pos === current ) return;
+				var el = item.querySelector('.slide__mover');
+				dynamics.css(el, { translateX: el.offsetWidth });
+			});
+		}, 10));
+
+		// keyboard navigation events
+		document.addEventListener( 'keydown', function( ev ) {
+			if( isOpen ) return; 
+			var keyCode = ev.keyCode || ev.which;
+			switch (keyCode) {
+				case 37:
+					navigate('left');
+					break;
+				case 39:
+					navigate('right');
+					break;
+			}
+		} );
+	}
+
+	// opens one item
+	function openItem(item) {
+		if( isOpen ) return;
+		isOpen = true;
+
+		// the element that will be transformed
+		var zoomer = item.querySelector('.zoomer');
+		// slide screen preview
+		classie.add(zoomer, 'zoomer--active');
+		// disallow scroll
+		scrollContainer.addEventListener('scroll', noscroll);
+		// apply transforms
+		applyTransforms(zoomer);
+		// also scale the body so it looks the camera moves to the item.
+		if( bodyScale ) {
+			dynamics.animate(bodyEl, { scale: bodyScale }, { type: dynamics.easeInOut, duration: 500 });
+		}
+		// after the transition is finished:
+		onEndTransition(zoomer, function() {
+			// reset body transform
+			if( bodyScale ) {
+				dynamics.stop(bodyEl);
+				dynamics.css(bodyEl, { scale: 1 });
+				
+				// fix for safari (allowing fixed children to keep position)
+				bodyEl.style.WebkitTransform = 'none';
+				bodyEl.style.transform = 'none';
+			}
+			// no scrolling
+			classie.add(bodyEl, 'noscroll');
+			classie.add(contentEl, 'content--open');
+			var contentItem = document.getElementById(item.getAttribute('data-content'))
+			classie.add(contentItem, 'content__item--current');
+			classie.add(contentItem, 'content__item--reset');
 
 
-    // Mobile nav
+			// reset zoomer transform - back to its original position/transform without a transition
+			classie.add(zoomer, 'zoomer--notrans');
+			zoomer.style.WebkitTransform = 'translate3d(0,0,0) scale3d(1,1,1)';
+			zoomer.style.transform = 'translate3d(0,0,0) scale3d(1,1,1)';
+		});
+	}
 
-    $('.mobile-toggle').click(function() {
-        $(this).closest('nav').toggleClass('nav-open');
-    });
+	// closes the item/content
+	function closeContent() {
+		var contentItem = contentEl.querySelector('.content__item--current'),
+			zoomer = items[current].querySelector('.zoomer');
 
-    // Navbar Sticky
+		classie.remove(contentEl, 'content--open');
+		classie.remove(contentItem, 'content__item--current');
+		classie.remove(bodyEl, 'noscroll');
+				
+		if( bodyScale ) {
+			// reset fix for safari (allowing fixed children to keep position)
+			bodyEl.style.WebkitTransform = '';
+			bodyEl.style.transform = '';
+		}
 
-    (function() {
-        var docElem = document.documentElement,
-            didScroll = false,
-            stickynav = 50;
-            document.querySelector( '.nav-container' );
-        function init() {
-            window.addEventListener( 'scroll', function() {
-                if( !didScroll ) {
-                    didScroll = true;
-                    setTimeout( scrollPage, 50 );
-                }
-            }, false );
-        }
-        
-        function scrollPage() {
-            var sy = scrollY();
-            if ( sy >= stickynav ) {
-                $( '.nav-container' ).addClass('sticky');
-            }
-            else {
-                $( '.nav-container' ).removeClass('sticky');
-            }
-            didScroll = false;
-        }
-        
-        function scrollY() {
-            return window.pageYOffset || docElem.scrollTop;
-        }        
-        init();        
-    })();
+		/* fix for safari flickering */
+		var nobodyscale = true;
+		applyTransforms(zoomer, nobodyscale);
+		/* fix for safari flickering */
 
+		// wait for the inner content to finish the transition
+		onEndTransition(contentItem, function(ev) {
+			classie.remove(this, 'content__item--reset');
+			
+			// reset scrolling permission
+			lockScroll = false;
+			scrollContainer.removeEventListener('scroll', noscroll);
 
-    // Append .background-image-holder <img>'s as CSS backgrounds
+			/* fix for safari flickering */
+			zoomer.style.WebkitTransform = 'translate3d(0,0,0) scale3d(1,1,1)';
+			zoomer.style.transform = 'translate3d(0,0,0) scale3d(1,1,1)';
+			/* fix for safari flickering */
+			
+			// scale up - behind the scenes - the item again (without transition)
+			applyTransforms(zoomer);
+			
+			// animate/scale down the item
+			setTimeout(function() {	
+				classie.remove(zoomer, 'zoomer--notrans');
+				classie.remove(zoomer, 'zoomer--active');
+				zoomer.style.WebkitTransform = 'translate3d(0,0,0) scale3d(1,1,1)';
+				zoomer.style.transform = 'translate3d(0,0,0) scale3d(1,1,1)';
+			}, 25);
 
-    $('.background-image-holder').each(function() {
-        var imgSrc = $(this).children('img').attr('src');
-        $(this).css('background', 'url("' + imgSrc + '")');
-        $(this).children('img').hide();
-        $(this).css('background-position', 'initial');
-        $(this).css('background-size', 'cover');
-        $(this).css('background-position', '50% 0');
-        $(this).css('background-repeat', 'no-repeat');
-    });
+			if( bodyScale ) {
+				dynamics.css(bodyEl, { scale: bodyScale });
+				dynamics.animate(bodyEl, { scale: 1 }, {
+					type: dynamics.easeInOut,
+					duration: 500
+				});
+			}
 
-    // Fade in background images
+			isOpen = false;
+		});
+	}
 
-    setTimeout(function() {
-        $('.background-image-holder').each(function() {
-            $(this).addClass('fadeIn');
-        });
-    }, 200);
+	// applies the necessary transform value to scale the item up
+	function applyTransforms(el, nobodyscale) {
+		// zoomer area and scale value
+		var zoomerArea = el.querySelector('.zoomer__area'), 
+			zoomerAreaSize = {width: zoomerArea.offsetWidth, height: zoomerArea.offsetHeight},
+			zoomerOffset = zoomerArea.getBoundingClientRect(),
+			scaleVal = zoomerAreaSize.width/zoomerAreaSize.height < win.width/win.height ? win.width/zoomerAreaSize.width : win.height/zoomerAreaSize.height;
 
-    // Owl Carousel Options
+		if( bodyScale && !nobodyscale ) {
+			scaleVal /= bodyScale; 
+		}
 
-    $("#slider").owlCarousel({
- 
-    navigation : false,
-    pagination: true,
-    responsive: true,
-    items: 1,
-    touchDrag: true,
-    navigationText: false,
-    mouseDrag: true,
-    itemsDesktop: [3000,1],
-    itemsDesktopSmall: [1440,1],
-    itemsTablet:[1024,1],
-    itemsTabletSmall: [600,1],
-    itemsMobile: [360,1],
-    autoPlay: true,
-    autoHeight: true
- 
-    });
+		// apply transform
+		el.style.WebkitTransform = 'translate3d(' + Number(win.width/2 - (zoomerOffset.left+zoomerAreaSize.width/2)) + 'px,' + Number(win.height/2 - (zoomerOffset.top+zoomerAreaSize.height/2)) + 'px,0) scale3d(' + scaleVal + ',' + scaleVal + ',1)';
+		el.style.transform = 'translate3d(' + Number(win.width/2 - (zoomerOffset.left+zoomerAreaSize.width/2)) + 'px,' + Number(win.height/2 - (zoomerOffset.top+zoomerAreaSize.height/2)) + 'px,0) scale3d(' + scaleVal + ',' + scaleVal + ',1)';
+	}
 
-    // Progress Bars
+	// navigate the slider
+	function navigate(dir) {
+		var itemCurrent = items[current],
+			currentEl = itemCurrent.querySelector('.slide__mover'),
+			currentTitleEl = itemCurrent.querySelector('.slide__title');
 
-    $('.progress-bar').each(function() {
-        $(this).css('width', $(this).attr('data-progress') + '%');
-    });
+		// update new current value
+		if( dir === 'right' ) {
+			current = current < itemsTotal-1 ? current + 1 : 0;
+		}
+		else {
+			current = current > 0 ? current - 1 : itemsTotal-1;
+		}
 
-    // Map Holder Overlay
-    
-    $('.map-holder').click(function(){
-        $(this).addClass('on');
-    });
-    
-    $(window).scroll(function(){
-        if($('.map-holder').hasClass('on')){
-            $('.map-holder').removeClass('on');
-        }
-    });
-    
-    // Map Details Holder
-    
-    $('.details-holder').each(function(){
-        $(this).css('height', $(this).width());
-    });
-    
-    $('.details-holder').mouseenter(function(){
-        $(this).closest('.map-overlay').addClass('fade-overlay');
-    }).mouseleave(function(){$(this).closest('.map-overlay').removeClass('fade-overlay');});
+		var itemNext = items[current],
+			nextEl = itemNext.querySelector('.slide__mover'),
+			nextTitleEl = itemNext.querySelector('.slide__title');
+		
+		// animate the current element out
+		dynamics.animate(currentEl, { opacity: 0, translateX: dir === 'right' ? -1*currentEl.offsetWidth/2 : currentEl.offsetWidth/2, rotateZ: dir === 'right' ? -10 : 10 }, {
+			type: dynamics.spring,
+			duration: 2000,
+			friction: 600,
+			complete: function() {
+				dynamics.css(itemCurrent, { opacity: 0, visibility: 'hidden' });
+			}
+		});
 
-    // Video Modals
-    $('section').closest('body').find('.modal-video[video-link]').remove();
+		// animate the current title out
+		dynamics.animate(currentTitleEl, { translateX: dir === 'right' ? -250 : 250, opacity: 0 }, {
+			type: dynamics.bezier,
+			points: [{"x":0,"y":0,"cp":[{"x":0.2,"y":1}]},{"x":1,"y":1,"cp":[{"x":0.3,"y":1}]}],
+			duration: 450
+		});
 
-    $('.modal-video-container').each(function(index) {
-        $(this).find('.play-button').attr('video-link', index);
-        $(this).find('.modal-video').clone().appendTo('body').attr('video-link', index);
-    });
+		// set the right properties for the next element to come in
+		dynamics.css(itemNext, { opacity: 1, visibility: 'visible' });
+		dynamics.css(nextEl, { opacity: 0, translateX: dir === 'right' ? nextEl.offsetWidth/2 : -1*nextEl.offsetWidth/2, rotateZ: dir === 'right' ? 10 : -10 });
 
-    $('.modal-video-container .play-button').click(function() {
-        var linkedVideo = $('section').closest('body').find('.modal-video[video-link="' + $(this).attr('video-link') + '"]');
-        linkedVideo.toggleClass('reveal-modal');
+		// animate the next element in
+		dynamics.animate(nextEl, { opacity: 1, translateX: 0 }, {
+			type: dynamics.spring,
+			duration: 2000,
+			friction: 600,
+			complete: function() {
+				items.forEach(function(item) { classie.remove(item, 'slide--current'); });
+				classie.add(itemNext, 'slide--current');
+			}
+		});
 
-        if (linkedVideo.find('video').length) {
-            linkedVideo.find('video').get(0).play();
-        }
+		// set the right properties for the next title to come in
+		dynamics.css(nextTitleEl, { translateX: dir === 'right' ? 250 : -250, opacity: 0 });
+		// animate the next title in
+		dynamics.animate(nextTitleEl, { translateX: 0, opacity: 1 }, {
+			type: dynamics.bezier,
+			points: [{"x":0,"y":0,"cp":[{"x":0.2,"y":1}]},{"x":1,"y":1,"cp":[{"x":0.3,"y":1}]}],
+			duration: 650
+		});
+	}
 
-        if (linkedVideo.find('iframe').length) {
-            var iframe = linkedVideo.find('iframe');
-            var iframeSrc = iframe.attr('data-src');
-            var autoplayMsg;
-            if(iframeSrc.indexOf('vimeo') > -1){
-                autoplayMsg = '&autoplay=1';
-            }else{
-                autoplayMsg = '?autoplay-1';
-            }
-            var iframeSrc = iframe.attr('data-src') + autoplayMsg;
-            iframe.attr('src', iframeSrc);
-        }
-    });
+	// disallow scrolling (on the scrollContainer)
+	function noscroll() {
+		if(!lockScroll) {
+			lockScroll = true;
+			xscroll = scrollContainer.scrollLeft;
+			yscroll = scrollContainer.scrollTop;
+		}
+		scrollContainer.scrollTop = yscroll;
+		scrollContainer.scrollLeft = xscroll;
+	}
 
-    $('section').closest('body').find('.close-iframe').click(function() {
-        $(this).closest('.modal-video').toggleClass('reveal-modal');
-        $(this).siblings('iframe').attr('src', '');
-        $(this).siblings('video').get(0).pause();
-    });
+	init();
 
-    // Local Videos
-
-    $('section').closest('body').find('.local-video-container .play-button').click(function() {
-        $(this).siblings('.background-image-holder').removeClass('fadeIn');
-        $(this).siblings('.background-image-holder').css('z-index', -1);
-        $(this).css('opacity', 0);
-        $(this).siblings('video').get(0).play();
-    });
-
-    // Youtube Videos
-
-    $('section').closest('body').find('.player').each(function() {
-        var section = $(this).closest('section');
-        section.find('.container').addClass('fadeOut');
-        var src = $(this).attr('data-video-id');
-        var startat = $(this).attr('data-start-at');
-        $(this).attr('data-property', "{videoURL:'http://youtu.be/" + src + "',containment:'self',autoPlay:true, mute:true, startAt:" + startat + ", opacity:1, showControls:false}");
-    });
-
-    if($('.player').length){
-        $('.player').each(function(){
-
-            var section = $(this).closest('section');
-            var player = section.find('.player');
-            player.YTPlayer();
-            player.on("YTPStart",function(e){
-                section.find('.container').removeClass('fadeOut');
-                section.find('.masonry-loader').addClass('fadeOut');
-            });
-
-        });
-    }
-
-
-});
-
-
-$(document).ready(function(){
-            
-    "use strict";
-
-//------------------------------------------------------------------------  
-//                    MAGNIFIC POPUP(LIGHTBOX) SETTINGS
-//------------------------------------------------------------------------  
-              
-    $('.portfolio-list li').magnificPopup({
-        delegate: 'a',
-        type: 'image',
-        gallery: {
-            enabled: true
-        }
-    });
-
-//------------------------------------------------------------------------
-//                  SUBSCRIBE FORM VALIDATION'S SETTINGS
-//------------------------------------------------------------------------          
-    $('#subscribe_form').validate({
-        onfocusout: false,
-        onkeyup: false,
-        rules: {
-            email: {
-                required: true,
-                email: true
-            }
-        },
-        errorPlacement: function(error, element) {
-            error.appendTo( element.closest("form"));
-        },
-        messages: {
-            email: {
-                required: "We need your email address to contact you",
-                email: "Please, enter a valid email"
-            }
-        },
-                    
-        highlight: function(element) {
-            $(element)
-        },                    
-                    
-        success: function(element) {
-            element
-            .text('').addClass('valid')
-        }
-    }); 
-    
-            
-//------------------------------------------------------------------------------------
-//                      SUBSCRIBE FORM MAILCHIMP INTEGRATIONS SCRIPT
-//------------------------------------------------------------------------------------      
-    $('#subscribe_form').submit(function() {
-        $('.error').hide();
-        $('.error').fadeIn();
-        // submit the form
-        if($(this).valid()){
-            $('#subscribe_submit').button('loading'); 
-            var action = $(this).attr('action');
-            $.ajax({
-                url: action,
-                type: 'POST',
-                data: {
-                    newsletter_email: $('#subscribe_email').val()
-                },
-                success: function(data) {
-                    $('#subscribe_submit').button('reset');
-                    
-                    //Use modal popups to display messages
-                    $('#modalMessage .modal-title').html('<i class="icon ion-ios-checkmark"></i>' + data);
-                    $('#modalMessage').modal('show');
-                    
-                },
-                error: function() {
-                    $('#subscribe_submit').button('reset');
-                    
-                    //Use modal popups to display messages
-                    $('#modalMessage .modal-title').html('<i class="icon ion-ios-close"></i>Oops!<br>Something went wrong!');
-                    $('#modalMessage').modal('show');
-                    
-                }
-            });
-        }
-        return false; 
-    });
-      
-          
-//------------------------------------------------------------------------------------
-//                      CONTACT FORM VALIDATION'S SETTINGS
-//------------------------------------------------------------------------------------        
-    $('#contact_form').validate({
-        onfocusout: false,
-        onkeyup: false,
-        rules: {
-            name: "required",
-            message: "required",
-            email: {
-                required: true,
-                email: true
-            }
-        },
-        errorPlacement: function(error, element) {
-            error.insertAfter(element);
-        },
-        messages: {
-            name: "What's your name?",
-            message: "Type your message",
-            email: {
-                required: "What's your email?",
-                email: "Please, enter a valid email"
-            }
-        },
-                    
-        highlight: function(element) {
-            $(element)
-            .text('').addClass('error')
-        },                    
-                    
-        success: function(element) {
-            element
-            .text('').addClass('valid')
-        }
-    });   
-
-
-
-
-//------------------------------------------------------------------------------------
-//                              CONTACT FORM SCRIPT
-//------------------------------------------------------------------------------------  
-    
-    $('#contact_form').submit(function() {
-        // submit the form
-        if($(this).valid()){
-            $('#contact_submit').button('loading'); 
-            var action = $(this).attr('action');
-            $.ajax({
-                url: action,
-                type: 'POST',
-                data: {
-                    contactname: $('#contact_name').val(),
-                    contactemail: $('#contact_email').val(),
-                    contactmessage: $('#contact_message').val()
-                },
-                success: function() {
-                    $('#contact_submit').button('reset');
-                    $('#modalContact').modal('hide');
-                    
-                    //Use modal popups to display messages
-                    $('#modalMessage .modal-title').html('<i class="icon ion-ios-checkmark"></i>Well done!<br>Your message has been successfully sent!');
-                    $('#modalMessage').modal('show');
-                },
-                error: function() {
-                    $('#contact_submit').button('reset');
-                    $('#modalContact').modal('hide');
-                    
-                    //Use modal popups to display messages
-                    $('#modalMessage .modal-title').html('<i class="icon ion-ios-close"></i>Oops!<br>Something went wrong!');
-                    $('#modalMessage').modal('show');
-                }
-            });
-        } else {
-            $('#contact_submit').button('reset')
-        }
-        return false; 
-    });           
-
-});
+})(window);
